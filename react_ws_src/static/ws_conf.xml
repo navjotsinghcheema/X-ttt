@@ -84,6 +84,7 @@
 			</txt>
 			<btns>
 				<b txt='PLAY' u='/ttt' />
+				<b txt='SPECTATE' u='ttt' />
 			</btns>
 		</home>
 
@@ -129,6 +130,7 @@
 			</txt>
 			<btns>
 				<b txt='PLAY' u='/ttt' />
+				<b txt='SPECTATE' u='ttt' />
 			</btns>
 		</info>
 
