@@ -40,7 +40,6 @@ function pair_avail_players() {
   gameplay.push({
     p1,
     p2,
-    turn: p1.sockid,
     moves: [],
   });
 
@@ -93,6 +92,44 @@ function replay() {
   );
   console.log("replay all the moves in the game");
   io.to(this.player.sockid).emit("replay-moves", game.moves);
+}
+// ----	--------------------------------------------	--------------------------------------------
+// ----	--------------------------------------------	--------------------------------------------
+
+function playAgain() {
+  console.log(`${this.player.name} requested to play again`);
+  var opponent = this.player.opp.sockid;
+  if (players.find((p) => p.sockid === opponent)) {
+    io.to(opponent).emit("request-play-again");
+  }
+}
+
+function confirmPlayAgain() {
+  console.log(`${this.player.name} confirmed to play again`);
+  gameplay.splice(
+    gameplay.findIndex((g) => {
+      const arr1 = [g.p1.sockid, g.p2.sockid].sort().join(",");
+      const arr2 = [this.player.sockid, this.player.opp.sockid]
+        .sort()
+        .join(",");
+      return arr1 === arr2;
+    }),
+    1,
+  );
+  gameplay.push({
+    p1: this.player,
+    p2: this.player.opp,
+    moves: [],
+  });
+  console.log("setting up a re-match...");
+  io.to(this.player.sockid).emit("play_again_approved", {
+    opp: { name: this.player.opp.name, uid: this.player.opp.uid },
+    mode: "m",
+  });
+  io.to(this.player.opp.sockid).emit("play_again_approved", {
+    opp: { name: this.player.name, uid: this.player.uid },
+    mode: "s",
+  });
 }
 
 // ----	--------------------------------------------	--------------------------------------------
@@ -150,6 +187,10 @@ set_game_sock_handlers = function (socket) {
   socket.on("repairwith_newplayer", repair);
 
   socket.on("replay_moves", replay);
+
+  socket.on("play_again", playAgain);
+
+  socket.on("confirm_play_again", confirmPlayAgain);
 
   socket.on("ply_turn", onTurn);
 

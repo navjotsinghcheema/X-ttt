@@ -92,7 +92,6 @@ export default class Game extends Component {
     this.socket.on(
       "pair_players",
       function (data) {
-        // console.log('paired with ', data)
         this.opponentPlayerID = data.opp.sockid;
         this.setState({
           next_turn_ply: data.mode == "m",
@@ -149,14 +148,6 @@ export default class Game extends Component {
           setTimeout(
             function () {
               var state = this.state;
-              //   console.log(
-              //     m.player_id,
-              //     this.playerID,
-              //     m.player_id === this.playerID ? "x" : "o",
-              //   );
-              //   state.cell_vals[m.cell_id] =
-              //     m.player_id === this.playerID ? "x" : "o";
-
               if (m.player_id === this.playerID) {
                 state.cell_vals[m.cell_id] = "x";
                 state.game_stat = `Your move: ${m.cell_id}`;
@@ -184,6 +175,31 @@ export default class Game extends Component {
 
         // Start the loop
         processNextMove();
+      }.bind(this),
+    );
+
+    this.socket.on(
+      "request-play-again",
+      function () {
+        let state = this.state;
+        state.confirm_play_again = true;
+        this.setState(state);
+      }.bind(this),
+    );
+
+    this.socket.on(
+      "play_again_approved",
+      function (data) {
+        this.resetBoard();
+        this.setState({
+          next_turn_ply: data.mode == "m",
+          game_play: true,
+          game_stat: "Playing with " + data.opp.name,
+          opponent_disconnected: false,
+          requesting_rematch: false,
+          confirm_play_again: false,
+          request_play_again: false,
+        });
       }.bind(this),
     );
   }
@@ -215,6 +231,11 @@ export default class Game extends Component {
   //	------------------------	------------------------	------------------------
   render() {
     const { reconnectingNewplayer = false } = this.state;
+    const gameEnded =
+      this.props.game_type === "live" &&
+      this.state.game_play === false &&
+      (this.state.game_stat.includes("win") ||
+        this.state.game_stat.includes("Draw"));
     return (
       <div id="GameMain">
         <h2>Play {this.props.game_type}</h2>
@@ -345,32 +366,63 @@ export default class Game extends Component {
           </table>
         </div>
         <div className="btns">
-          <button
-            type="submit"
-            onClick={this.end_game.bind(this)}
-            className="button"
-            disabled={this.state.opponent_disconnected}
-          >
-            <span>
-              End Game <span className="fa fa-gamepad"></span>
-            </span>
-          </button>
+          {!gameEnded && (
+            <button
+              type="submit"
+              onClick={this.end_game.bind(this)}
+              className="button"
+              disabled={this.state.opponent_disconnected}
+            >
+              <span>
+                End Game <span className="fa fa-gamepad"></span>
+              </span>
+            </button>
+          )}
 
-          {this.props.game_type === "live" &&
-            this.state.game_play === false &&
-            (this.state.game_stat.includes("win") ||
-              this.state.game_stat.includes("Draw")) && (
-              <button
-                type="submit"
-                onClick={this.replay.bind(this)}
-                className="button"
-              >
-                <span>
-                  Replay <span className="fa fa-play"></span>
-                </span>
-              </button>
-            )}
+          {gameEnded && (
+            <button
+              type="submit"
+              onClick={this.request_play_again.bind(this)}
+              disabled={this.state.confirm_play_again}
+              className="button"
+            >
+              <span>
+                Play Again! <span className="fa fa-gamepad"></span>
+              </span>
+            </button>
+          )}
+
+          {gameEnded && (
+            <button
+              type="submit"
+              onClick={this.replay.bind(this)}
+              className="button"
+            >
+              <span>
+                Replay <span className="fa fa-play"></span>
+              </span>
+            </button>
+          )}
         </div>
+        {this.state.requesting_rematch && (
+          <p className="rematch_dialog">
+            Waiting for the opponent to accept re-match...
+          </p>
+        )}
+        {this.state.confirm_play_again && (
+          <div className="rematch_dialog">
+            <p>Player has requested for a re-match</p>
+            <button
+              onClick={this.acceptRematch.bind(this)}
+              className="button"
+              disabled={this.state.request_play_again}
+            >
+              <span>
+                Accept <span className="fa fa-reply"></span>
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -556,15 +608,11 @@ export default class Game extends Component {
         game_stat: (cell_vals[set[0]] == "x" ? "You" : "Opponent") + " win",
         game_play: false,
       });
-
-      //   this.socket && this.socket.disconnect();
     } else if (fin) {
       this.setState({
         game_stat: "Draw",
         game_play: false,
       });
-
-      //   this.socket && this.socket.disconnect();
     } else {
       this.props.game_type != "live" &&
         this.state.next_turn_ply &&
@@ -584,6 +632,16 @@ export default class Game extends Component {
     this.props.onEndGame();
   }
 
+  request_play_again() {
+    let state = this.state;
+    state.requesting_rematch = true;
+    this.setState(state);
+    this.socket.emit("play_again");
+  }
+
+  acceptRematch() {
+    this.socket.emit("confirm_play_again");
+  }
   replay() {
     this.socket.emit("replay_moves");
   }
