@@ -133,6 +133,9 @@ section#TTT_game {
     text-align: center;
     padding-top: 10px;
     font-family: $hdrFont;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 
     #game_stat_msg {
       @include font-size(28px);
@@ -141,6 +144,21 @@ section#TTT_game {
     #game_turn_msg {
       padding-top: 5px;
       @include font-size(22px);
+    }
+  }
+
+  div.btns {
+    display: flex;
+    gap: 1rem;
+
+    button {
+      width: auto;
+      padding: 0 0.75rem;
+      min-width: 179px;
+
+      &:active {
+        margin-bottom: 0;
+      }
     }
   }
 
@@ -188,19 +206,6 @@ section#TTT_game {
 
     h3 {
       font-style: italic;
-    }
-    div.btns {
-      display: flex;
-      gap: 1rem;
-
-      button {
-        width: auto;
-        padding: 0 0.75rem;
-
-        &:active {
-          margin-bottom: 0;
-        }
-      }
     }
   }
 }

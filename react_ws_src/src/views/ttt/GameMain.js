@@ -23,6 +23,8 @@ export default class Game extends Component {
       ["c1", "c5", "c9"],
       ["c3", "c5", "c7"],
     ];
+    this.playerID;
+    this.opponentPlayerID;
 
     if (this.props.game_type != "live")
       this.state = {
@@ -79,12 +81,19 @@ export default class Game extends Component {
         this.socket.emit("new player", { name: app.settings.curr_user.name });
       }.bind(this),
     );
+    this.socket.on(
+      "player-dto",
+      function (playerID) {
+        console.log("player id is: ", playerID);
+        this.playerID = playerID;
+      }.bind(this),
+    );
 
     this.socket.on(
       "pair_players",
       function (data) {
         // console.log('paired with ', data)
-
+        this.opponentPlayerID = data.opp.sockid;
         this.setState({
           next_turn_ply: data.mode == "m",
           game_play: true,
@@ -122,6 +131,61 @@ export default class Game extends Component {
     );
 
     this.socket.on("opp_turn", this.turn_opp_live.bind(this));
+    this.socket.on(
+      "replay-moves",
+      function (moves) {
+        this.resetBoard();
+        console.log("player id", this.playerID);
+        var movesQueue = moves.slice();
+        var processNextMove = function () {
+          if (movesQueue.length === 0) {
+            this.check_turn();
+            return; // Exit when done
+          }
+
+          var m = movesQueue.shift();
+          console.log(m);
+
+          setTimeout(
+            function () {
+              var state = this.state;
+              //   console.log(
+              //     m.player_id,
+              //     this.playerID,
+              //     m.player_id === this.playerID ? "x" : "o",
+              //   );
+              //   state.cell_vals[m.cell_id] =
+              //     m.player_id === this.playerID ? "x" : "o";
+
+              if (m.player_id === this.playerID) {
+                state.cell_vals[m.cell_id] = "x";
+                state.game_stat = `Your move: ${m.cell_id}`;
+              } else {
+                state.cell_vals[m.cell_id] = "o";
+                state.game_stat = `Opponent's move: ${m.cell_id}`;
+              }
+
+              if (this.refs[m.cell_id]) {
+                TweenMax.from(this.refs[m.cell_id], 0.7, {
+                  opacity: 0,
+                  scaleX: 0,
+                  scaleY: 0,
+                  ease: Power4.easeOut,
+                });
+              }
+
+              this.setState(state);
+
+              processNextMove();
+            }.bind(this),
+            1500,
+          );
+        }.bind(this);
+
+        // Start the loop
+        processNextMove();
+      }.bind(this),
+    );
   }
 
   //	------------------------	------------------------	------------------------
@@ -154,7 +218,7 @@ export default class Game extends Component {
     return (
       <div id="GameMain">
         <h2>Play {this.props.game_type}</h2>
-        {this.state.opponent_disconnected && (
+        {this.state.opponent_disconnected && this.state.game_play === true && (
           <div className="reconnect">
             <h3>
               Opponent has left the game! Would you like to connect with a
@@ -280,23 +344,46 @@ export default class Game extends Component {
             </tbody>
           </table>
         </div>
+        <div className="btns">
+          <button
+            type="submit"
+            onClick={this.end_game.bind(this)}
+            className="button"
+            disabled={this.state.opponent_disconnected}
+          >
+            <span>
+              End Game <span className="fa fa-gamepad"></span>
+            </span>
+          </button>
 
-        <button
-          type="submit"
-          onClick={this.end_game.bind(this)}
-          className="button"
-          disabled={this.state.opponent_disconnected}
-        >
-          <span>
-            End Game <span className="fa fa-caret-right"></span>
-          </span>
-        </button>
+          {this.props.game_type === "live" &&
+            this.state.game_play === false &&
+            (this.state.game_stat.includes("win") ||
+              this.state.game_stat.includes("Draw")) && (
+              <button
+                type="submit"
+                onClick={this.replay.bind(this)}
+                className="button"
+              >
+                <span>
+                  Replay <span className="fa fa-play"></span>
+                </span>
+              </button>
+            )}
+        </div>
       </div>
     );
   }
 
   //	------------------------	------------------------	------------------------
   //	------------------------	------------------------	------------------------
+
+  resetBoard() {
+    this.state.cell_vals = {};
+    Array.from(document.getElementsByTagName("td")).map((ref) =>
+      ref.classList.remove("win"),
+    );
+  }
 
   connect_newgame() {
     let state = this.state;
@@ -309,7 +396,6 @@ export default class Game extends Component {
   click_cell(e) {
     // console.log(e.currentTarget.id.substr(11))
     // console.log(e.currentTarget)
-
     if (!this.state.next_turn_ply || !this.state.game_play) return;
 
     const cell_id = e.currentTarget.id.substr(11);
@@ -391,12 +477,12 @@ export default class Game extends Component {
       ease: Power4.easeOut,
     });
 
-    this.socket.emit("ply_turn", { cell_id: cell_id });
+    this.socket.emit("ply_turn", { cell_id });
 
-    // this.setState({
-    // 	cell_vals: cell_vals,
-    // 	next_turn_ply: false
-    // })
+    this.setState({
+      cell_vals,
+      next_turn_ply: false,
+    });
 
     // setTimeout(this.turn_comp.bind(this), rand_to_fro(500, 1000));
 
@@ -471,14 +557,14 @@ export default class Game extends Component {
         game_play: false,
       });
 
-      this.socket && this.socket.disconnect();
+      //   this.socket && this.socket.disconnect();
     } else if (fin) {
       this.setState({
         game_stat: "Draw",
         game_play: false,
       });
 
-      this.socket && this.socket.disconnect();
+      //   this.socket && this.socket.disconnect();
     } else {
       this.props.game_type != "live" &&
         this.state.next_turn_ply &&
@@ -496,5 +582,9 @@ export default class Game extends Component {
     this.socket && this.socket.disconnect();
 
     this.props.onEndGame();
+  }
+
+  replay() {
+    this.socket.emit("replay_moves");
   }
 }

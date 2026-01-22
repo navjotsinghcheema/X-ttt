@@ -17,7 +17,7 @@ function onNewPlayer(data) {
 
   // console.log("looking for pair - uid:"+newPlayer.uid + " ("+newPlayer.name + ")");
   pair_avail_players();
-
+  io.to(this.player.sockid).emit("player-dto", newPlayer.sockid);
   // updAdmin("looking for pair - uid:"+p.uid + " ("+p.name + ")");
 
   // updAdmin("new player connected - uid:"+data.uid + " - "+data.name);
@@ -37,11 +37,12 @@ function pair_avail_players() {
   p2.status = "paired";
   p1.opp = p2;
   p2.opp = p1;
-  //   gameplay.push({
-  //     p1,
-  //     p2,
-  //     moves: [],
-  //   });
+  gameplay.push({
+    p1,
+    p2,
+    turn: p1.sockid,
+    moves: [],
+  });
 
   //console.log("connect_new_players p1: "+util.inspect(p1, { showHidden: true, depth: 3, colors: true }));
 
@@ -69,6 +70,7 @@ function pair_avail_players() {
   );
   // updAdmin("connect_new_players - uidM:"+p1.uid + " ("+p1.name + ")  ++  uidS: "+p2.uid + " ("+p2.name+")");
 }
+// ----	--------------------------------------------	--------------------------------------------
 
 // ----	--------------------------------------------	--------------------------------------------
 
@@ -77,25 +79,24 @@ function onTurn(data) {
   const game = gameplay.find(
     (g) => [g.p1.sockid, g.p2.sockid].indexOf(this.player.sockid) !== -1,
   );
-  //   game.moves.push({ cell_id: data.cell_id });
-  //   io.to(this.player.sockid).emit("gameplay", game);
-  //   io.to(this.player.opp.sockid).emit("gameplay", game);
-
+  game.moves.push({ player_id: this.player.sockid, cell_id: data.cell_id });
+  console.log(game.moves);
   io.to(this.player.opp.sockid).emit("opp_turn", { cell_id: data.cell_id });
-
-  console.log(
-    "turn  --  usr:" +
-      this.player.mode +
-      " - :" +
-      this.player.name +
-      "  --  cell_id:" +
-      data.cell_id,
-  );
-  // updAdmin("Q answer - game - qgid:"+data.qgid + "  --  usr:"+this.player.mode + " - uid:"+this.player.uid + "  --  qnum:"+data.qnum + "  --  ans:"+data.ansnum);
 }
+
 // ----	--------------------------------------------	--------------------------------------------
 // ----	--------------------------------------------	--------------------------------------------
 
+function replay() {
+  const game = gameplay.find(
+    (g) => [g.p1.sockid, g.p2.sockid].indexOf(this.player.sockid) !== -1,
+  );
+  console.log("replay all the moves in the game");
+  io.to(this.player.sockid).emit("replay-moves", game.moves);
+}
+
+// ----	--------------------------------------------	--------------------------------------------
+// ----	--------------------------------------------	--------------------------------------------
 // Opponent player disconnected and this player chose to re pair with someone else
 function repair() {
   if (players_avail.findIndex((p) => p.uid === this.player.uid) === -1) {
@@ -112,7 +113,6 @@ function repair() {
 
 // Socket client has disconnected
 function onClientDisconnect() {
-  //   io.to(this.player.opp.sockid).emit("opponent_disconnected");
   const removePlayer = this.player;
   console.log("----------removing player-----------\n\n", removePlayer);
   players.splice(players.indexOf(removePlayer), 1);
@@ -148,6 +148,8 @@ set_game_sock_handlers = function (socket) {
   socket.on("new player", onNewPlayer);
 
   socket.on("repairwith_newplayer", repair);
+
+  socket.on("replay_moves", replay);
 
   socket.on("ply_turn", onTurn);
 
