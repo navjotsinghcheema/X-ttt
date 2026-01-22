@@ -26,47 +26,46 @@ function onNewPlayer(data) {
 // ----	--------------------------------------------	--------------------------------------------
 
 function pair_avail_players() {
-  if (players_avail.length < 2) return;
+  while (players_avail.length >= 2) {
+    var p1 = players_avail.shift();
+    var p2 = players_avail.shift();
+    if (!p1 || !p2) continue;
 
-  var p1 = players_avail.shift();
-  var p2 = players_avail.shift();
+    p1.mode = "m";
+    p2.mode = "s";
+    p1.status = "paired";
+    p2.status = "paired";
+    p1.opp = p2;
+    p2.opp = p1;
 
-  p1.mode = "m";
-  p2.mode = "s";
-  p1.status = "paired";
-  p2.status = "paired";
-  p1.opp = p2;
-  p2.opp = p1;
-  gameplay.push({
-    p1,
-    p2,
-    moves: [],
-  });
+    gameplay.push({ p1, p2, moves: [] });
 
-  //console.log("connect_new_players p1: "+util.inspect(p1, { showHidden: true, depth: 3, colors: true }));
+    io.to(p1.sockid).emit("pair_players", {
+      opp: { name: p2.name, uid: p2.uid },
+      mode: "m",
+    });
+    io.to(p2.sockid).emit("pair_players", {
+      opp: { name: p1.name, uid: p1.uid },
+      mode: "s",
+    });
+
+    console.log(
+      "connect_new_players - uidM:" +
+        p1.uid +
+        " (" +
+        p1.name +
+        ")  ++  uidS: " +
+        p2.uid +
+        " (" +
+        p2.name +
+        ")",
+    );
+  }
+
+  //   //console.log("connect_new_players p1: "+util.inspect(p1, { showHidden: true, depth: 3, colors: true }));
 
   // io.sockets.connected[p1.sockid].emit("pair_players", {opp: {name:p2.name, uid:p2.uid}, mode:'m'});
   // io.sockets.connected[p2.sockid].emit("pair_players", {opp: {name:p1.name, uid:p1.uid}, mode:'s'});
-  io.to(p1.sockid).emit("pair_players", {
-    opp: { name: p2.name, uid: p2.uid },
-    mode: "m",
-  });
-  io.to(p2.sockid).emit("pair_players", {
-    opp: { name: p1.name, uid: p1.uid },
-    mode: "s",
-  });
-
-  console.log(
-    "connect_new_players - uidM:" +
-      p1.uid +
-      " (" +
-      p1.name +
-      ")  ++  uidS: " +
-      p2.uid +
-      " (" +
-      p2.name +
-      ")",
-  );
   // updAdmin("connect_new_players - uidM:"+p1.uid + " ("+p1.name + ")  ++  uidS: "+p2.uid + " ("+p2.name+")");
 }
 // ----	--------------------------------------------	--------------------------------------------
@@ -79,7 +78,6 @@ function onTurn(data) {
     (g) => [g.p1.sockid, g.p2.sockid].indexOf(this.player.sockid) !== -1,
   );
   game.moves.push({ player_id: this.player.sockid, cell_id: data.cell_id });
-  console.log(game.moves);
   io.to(this.player.opp.sockid).emit("opp_turn", { cell_id: data.cell_id });
 }
 
@@ -134,26 +132,29 @@ function confirmPlayAgain() {
 
 // ----	--------------------------------------------	--------------------------------------------
 // ----	--------------------------------------------	--------------------------------------------
-// Opponent player disconnected and this player chose to re pair with someone else
+// Opponent player disconnected and this player chose to re-pair with someone else by clicking connect new game
 function repair() {
-  if (players_avail.findIndex((p) => p.uid === this.player.uid) === -1) {
-    console.log(
-      `Pairing ${this.player.name}(${this.player.uid}) with a new player!`,
-    );
-    this.player.status = "";
+  console.log(
+    `Pairing ${this.player.name}(${this.player.uid}) with a new player!`,
+  );
+  this.player.status = "looking";
+  this.player.opp = null;
+  if (players_avail.findIndex((p) => p.sockid === this.player.sockid) === -1) {
     players_avail.push(this.player);
-    pair_avail_players();
   }
+  console.log("available players", players_avail);
+  pair_avail_players();
 }
 // ----	--------------------------------------------	--------------------------------------------
 // ----	--------------------------------------------	--------------------------------------------
 
 // Socket client has disconnected
 function onClientDisconnect() {
+  console.log("on DISCONNECT: ", players_avail);
   const removePlayer = this.player;
   console.log("----------removing player-----------\n\n", removePlayer);
   players.splice(players.indexOf(removePlayer), 1);
-  players_avail.splice(players_avail.indexOf(removePlayer), 1);
+  //   players_avail.splice(players_avail.indexOf(removePlayer), 1);
 
   if (this.status == "admin") {
     console.log("Admin has disconnected: " + this.uid);

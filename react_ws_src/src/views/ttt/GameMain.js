@@ -105,14 +105,10 @@ export default class Game extends Component {
     this.socket.on(
       "opponent_disconnected",
       function () {
+        let state = this.state;
+        state.opponent_disconnected = true;
         console.log("OPPONENT DISCONNECTED");
-        this.setState({
-          cell_vals: {},
-          next_turn_ply: true,
-          game_play: false,
-          game_stat: "Connecting",
-          opponent_disconnected: true,
-        });
+        this.setState(state);
       }.bind(this),
     );
 
@@ -195,7 +191,6 @@ export default class Game extends Component {
           next_turn_ply: data.mode == "m",
           game_play: true,
           game_stat: "Playing with " + data.opp.name,
-          opponent_disconnected: false,
           requesting_rematch: false,
           confirm_play_again: false,
           request_play_again: false,
