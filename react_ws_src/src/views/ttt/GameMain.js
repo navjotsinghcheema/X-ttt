@@ -435,6 +435,7 @@ export default class Game extends Component {
   connect_newgame() {
     let state = this.state;
     state.reconnectingNewplayer = true;
+    state.cell_vals = {};
     console.log("CONNECTING WITH A NEW PLAYER");
     this.socket.emit("repairwith_newplayer");
     this.setState(state);
